@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="nl" class="h-full light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UrenTracker - Stage & Werk</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts & Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    <!-- Chart.js voor visuele grafieken -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        md: {
+                            primary: '#6750A4',
+                            onPrimary: '#FFFFFF',
+                            primaryContainer: '#EADDFF',
+                            onPrimaryContainer: '#21005D',
+                            surface: '#FEF7FF',
+                            onSurface: '#1D1B20',
+                            surfaceVariant: '#E7E0EC',
+                            onSurfaceVariant: '#49454F',
+                            outline: '#79747E',
+                            background: '#FEF7FF',
+                            onBackground: '#1D1B20',
+                            darkSurface: '#141218',
+                            darkOnSurface: '#E6E0E9',
+                            darkSurfaceVariant: '#49454F',
+                            darkOnSurfaceVariant: '#CAC4D0',
+                            darkBackground: '#141218',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Roboto', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.filled {
+            font-variation-settings: 'FILL' 1;
+        }
+        .touch-active:active {
+            transform: scale(0.97);
+            opacity: 0.9;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-md-background dark:bg-md-darkBackground text-md-onBackground dark:text-md-darkOnSurface min-h-full flex flex-col font-sans select-none antialiased">
+
+    <!-- Top App Bar -->
+    <header class="sticky top-0 z-20 bg-md-surface dark:bg-md-darkSurface border-b border-md-surfaceVariant/40 dark:border-md-darkSurfaceVariant/40 px-4 py-3 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-md-primary dark:text-md-primaryContainer text-2xl">schedule</span>
+            <h1 class="text-xl font-medium tracking-wide">UrenTracker</h1>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="themeToggleBtn" onclick="toggleDarkMode()" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-md-onSurfaceVariant dark:text-md-darkOnSurfaceVariant transition">
+                <span class="material-symbols-outlined" id="themeIcon">dark_mode</span>
+            </button>
+            <button onclick="exportCSV()" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-md-onSurfaceVariant dark:text-md-darkOnSurfaceVariant transition" title="Exporteer CSV">
+                <span class="material-symbols-outlined">download</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-lg w-full mx-auto p-4 pb-28 space-y-5">
+
+        <!-- DUAL PROGRESS CARDS (Stage & Gewerkte Uren) -->
+        <div class="space-y-3">
+            <!-- 1. Stage Voortgang Card -->
+            <section class="bg-white dark:bg-zinc-900 rounded-3xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800 relative">
+                <div class="flex justify-between items-start mb-1">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-xl">school</span>
+                        <span class="text-xs font-semibold tracking-wider uppercase text-zinc-500 dark:text-zinc-400">Stage Uren</span>
+                    </div>
+                    <button onclick="openTargetModal('stage')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
+                        <span class="material-symbols-outlined text-lg">edit</span>
+                    </button>
+                </div>
+                <div class="flex justify-between items-baseline mt-1">
+                    <h2 class="text-2xl font-bold" id="stageHoursDisplay">0 / 320 <span class="text-sm font-normal text-zinc-500">uur</span></h2>
+                    <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400" id="stagePercentage">0%</span>
+                </div>
+                <div class="w-full bg-zinc-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden mt-2 p-0.5 border border-zinc-200/50 dark:border-zinc-700/50">
+                    <div id="stageProgressBar" class="bg-indigo-600 dark:bg-indigo-500 h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 font-medium">
+                    <span id="stageRemaining">Nog 320 uur te gaan</span>
+                    <span>Totaal Stage Doel</span>
+                </div>
+            </section>
+
+            <!-- 2. Gewerkte Uren Card - Simplified without Goal/Progress -->
+            <section class="bg-white dark:bg-zinc-900 rounded-3xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800 relative">
+                <div class="flex justify-between items-start mb-1">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-xl">work</span>
+                        <span class="text-xs font-semibold tracking-wider uppercase text-zinc-500 dark:text-zinc-400">Gewerkte Uren</span>
+                    </div>
+                    <button onclick="openTargetModal('work')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
+                        <span class="material-symbols-outlined text-lg">edit</span>
+                    </button>
+                </div>
+                <div class="flex justify-between items-baseline mt-1">
+                    <h2 class="text-3xl font-bold text-emerald-600 dark:text-emerald-400" id="workHoursDisplay">0.0 <span class="text-base font-normal text-zinc-500 dark:text-zinc-400">uur deze week</span></h2>
+                    <span class="text-base font-bold text-zinc-800 dark:text-zinc-100" id="workEarningsEstimate">€ 0.00</span>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-zinc-500 dark:text-zinc-400 mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/80 font-medium">
+                    <span id="workHourlyRateLabel">Uurloon: Niet ingesteld</span>
+                    <span id="workTotalAllTimeLabel">Totaal gewerkt: 0.0 uur</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- Statistieken Tabs -->
+        <section class="bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-2xl flex text-xs font-medium">
+            <button id="tabThisWeekBtn" onclick="switchOverviewTab('week')" class="flex-1 py-2 rounded-xl text-center transition-all bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm">
+                Deze Week
+            </button>
+            <button id="tabAllTimeBtn" onclick="switchOverviewTab('all')" class="flex-1 py-2 rounded-xl text-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
+                Totaal Overzicht
+            </button>
+        </section>
+
+        <!-- Totale Samenvatting Grid -->
+        <div class="grid grid-cols-3 gap-2 text-center">
+            <div class="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl p-3">
+                <span class="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold uppercase block">Stage Uren</span>
+                <span class="text-lg font-bold text-indigo-950 dark:text-indigo-200" id="statStageSubtotal">0.0u</span>
+            </div>
+            <div class="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 rounded-2xl p-3">
+                <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase block">Werk Uren</span>
+                <span class="text-lg font-bold text-emerald-950 dark:text-emerald-200" id="statWorkSubtotal">0.0u</span>
+            </div>
+            <div class="bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 rounded-2xl p-3">
+                <span class="text-[10px] text-purple-600 dark:text-purple-400 font-semibold uppercase block">Gecombineerd</span>
+                <span class="text-lg font-bold text-purple-950 dark:text-purple-200" id="statCombinedTotal">0.0u</span>
+            </div>
+        </div>
+
+        <!-- Categorie Grafiek -->
+        <section class="bg-white dark:bg-zinc-900 rounded-3xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Verdeling per Categorie</h3>
+                <select id="chartTypeFilter" onchange="updateChart()" class="bg-transparent text-xs font-semibold text-indigo-600 dark:text-indigo-400 focus:outline-none cursor-pointer">
+                    <option value="all">Alle Uren</option>
+                    <option value="stage">Alleen Stage</option>
+                    <option value="work">Alleen Werk</option>
+                </select>
+            </div>
+            <div class="relative w-full aspect-square max-h-52 flex items-center justify-center">
+                <canvas id="categoryChart"></canvas>
+                <div id="chartEmptyState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-zinc-400 text-xs">
+                    <span class="material-symbols-outlined text-3xl mb-1">pie_chart_outline</span>
+                    <span>Geen uren geregistreerd</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Historie & Filters -->
+        <section class="space-y-3">
+            <div class="flex justify-between items-center px-1">
+                <h3 class="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Diensten Historie</h3>
+                <div class="flex gap-2">
+                    <select id="typeFilterSelector" onchange="renderEntriesList()" class="bg-transparent text-xs font-semibold text-indigo-600 dark:text-indigo-400 focus:outline-none cursor-pointer">
+                        <option value="all">Alle types</option>
+                        <option value="stage">🎓 Stage</option>
+                        <option value="work">💼 Werk</option>
+                    </select>
+                    <select id="dateFilterSelector" onchange="renderEntriesList()" class="bg-transparent text-xs font-semibold text-indigo-600 dark:text-indigo-400 focus:outline-none cursor-pointer">
+                        <option value="thisWeek" selected>Deze week</option>
+                        <option value="lastWeek">Vorige week</option>
+                        <option value="thisMonth">Deze maand</option>
+                        <option value="all">Alles</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Entries List -->
+            <div id="entriesList" class="space-y-2.5">
+                <!-- Dynamisch gevuld -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FAB voor Toevoegen -->
+    <div class="fixed bottom-6 right-6 z-30">
+        <button onclick="openEntryModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl p-4 shadow-lg flex items-center justify-center transition-all touch-active">
+            <span class="material-symbols-outlined text-2xl">add</span>
+            <span class="ml-2 font-medium pr-1">Uren Toevoegen</span>
+        </button>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 px-6 py-2 z-20 flex justify-around items-center max-w-lg mx-auto">
+        <button onclick="scrollToTop()" class="flex flex-col items-center text-indigo-600 dark:text-indigo-400">
+            <span class="material-symbols-outlined filled">home</span>
+            <span class="text-[10px] font-medium mt-0.5">Overzicht</span>
+        </button>
+        <button onclick="openCategoryManagerModal()" class="flex flex-col items-center text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
+            <span class="material-symbols-outlined">category</span>
+            <span class="text-[10px] font-medium mt-0.5">Categorieën</span>
+        </button>
+        <button onclick="exportCSV()" class="flex flex-col items-center text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
+            <span class="material-symbols-outlined">file_download</span>
+            <span class="text-[10px] font-medium mt-0.5">Export</span>
+        </button>
+    </nav>
+
+    <!-- MODAL 1: Uren Registreren / Bewerken -->
+    <div id="entryModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
+                <h3 class="text-lg font-bold" id="modalEntryTitle">Uren Registreren</h3>
+                <button onclick="closeEntryModal()" class="text-zinc-400 p-1">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <form id="entryForm" onsubmit="handleSaveEntry(event)" class="space-y-4">
+                <input type="hidden" id="entryId">
+
+                <!-- Type Selector (Stage vs Werk vs Beide) -->
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">TYPE UREN</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="entryType" value="stage" class="peer sr-only" checked>
+                            <div class="py-2.5 px-2 rounded-xl text-center border border-zinc-200 dark:border-zinc-700 text-xs font-semibold peer-checked:bg-indigo-50 peer-checked:border-indigo-600 peer-checked:text-indigo-600 dark:peer-checked:bg-indigo-950/50 dark:peer-checked:text-indigo-400 transition">
+                                🎓 Stage
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="entryType" value="work" class="peer sr-only">
+                            <div class="py-2.5 px-2 rounded-xl text-center border border-zinc-200 dark:border-zinc-700 text-xs font-semibold peer-checked:bg-emerald-50 peer-checked:border-emerald-600 peer-checked:text-emerald-600 dark:peer-checked:bg-emerald-950/50 dark:peer-checked:text-emerald-400 transition">
+                                💼 Werk
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="entryType" value="both" class="peer sr-only">
+                            <div class="py-2.5 px-2 rounded-xl text-center border border-zinc-200 dark:border-zinc-700 text-xs font-semibold peer-checked:bg-purple-50 peer-checked:border-purple-600 peer-checked:text-purple-600 dark:peer-checked:bg-purple-950/50 dark:peer-checked:text-purple-400 transition">
+                                🔀 Beide
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Datum -->
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">DATUM</label>
+                    <input type="date" id="entryDate" required class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <!-- Aantal Uren -->
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">AANTAL UREN (bijv. 4.5)</label>
+                    <input type="number" id="entryHours" step="0.25" min="0.25" max="24" placeholder="4.5" required class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <!-- Categorie Selector -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400">CATEGORIE</label>
+                        <button type="button" onclick="openCategoryManagerModal()" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">+ Beheren</button>
+                    </div>
+                    <select id="entryCategory" required class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </select>
+                </div>
+
+                <!-- Opmerking -->
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">NOTITIE (OPTIONEEL)</label>
+                    <textarea id="entryNote" rows="2" placeholder="Wat heb je gedaan tijdens deze dienst?" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeEntryModal()" class="flex-1 py-3 border border-zinc-300 dark:border-zinc-700 rounded-xl font-medium text-sm text-zinc-700 dark:text-zinc-300">
+                        Annuleren
+                    </button>
+                    <button type="submit" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium text-sm shadow-md">
+                        Opslaan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Stage & Werk Doelen Instellen -->
+    <div id="targetModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-6 space-y-4">
+            <h3 class="text-lg font-bold" id="targetModalTitle">Instellingen</h3>
+            
+            <form onsubmit="handleSaveTarget(event)" class="space-y-4">
+                <input type="hidden" id="targetType">
+                
+                <div id="stageTargetFields" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">STAGE TOTAAL UREN DOEL</label>
+                        <input type="number" id="stageTargetInput" min="1" step="1" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none">
+                    </div>
+                </div>
+
+                <div id="workTargetFields" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">UURLOON (€ OPTIONEEL)</label>
+                        <input type="number" id="workHourlyRateInput" min="0" step="0.05" placeholder="12.50" class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none">
+                        <p class="text-[11px] text-zinc-400 mt-1">Wordt gebruikt om je verwachte verdiende salaris per week te berekenen.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeTargetModal()" class="flex-1 py-2.5 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-medium">Annuleren</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium shadow">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Categorie Beheer -->
+    <div id="categoryModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-5 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
+                <h3 class="text-lg font-bold">Categorieën Beheren</h3>
+                <button onclick="closeCategoryModal()" class="text-zinc-400">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <form onsubmit="handleAddCategory(event)" class="space-y-3 bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60">
+                <span class="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">NIEUWE CATEGORIE TOEVOEGEN</span>
+                <div class="flex gap-2">
+                    <input type="text" id="newCatName" placeholder="Naam (bijv. Vergadering)" required class="flex-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none">
+                    <input type="color" id="newCatColor" value="#4F46E5" class="h-9 w-10 p-0.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 cursor-pointer">
+                </div>
+                <button type="submit" class="w-full py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold uppercase shadow-sm">
+                    + Categorie Toevoegen
+                </button>
+            </form>
+
+            <div class="space-y-2">
+                <span class="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">BESTAANDE CATEGORIEËN</span>
+                <div id="categoriesList" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 px-4 py-2.5 rounded-2xl shadow-xl text-xs font-medium z-50 transform -translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-2 pointer-events-none">
+        <span class="material-symbols-outlined text-base text-emerald-400 dark:text-emerald-600" id="toastIcon">check_circle</span>
+        <span id="toastMsg">Bericht</span>
+    </div>
+
+    <!-- App Logic -->
+    <script>
+        const DEFAULT_CATEGORIES = [
+            { id: 'cat-1', name: 'Toezichthouden', color: '#3B82F6' },
+            { id: 'cat-2', name: 'Zwemmen', color: '#06B6D4' },
+            { id: 'cat-3', name: 'Baliewerk', color: '#8B5CF6' },
+            { id: 'cat-4', name: 'Onderhoud', color: '#F59E0B' },
+            { id: 'cat-5', name: 'Overig', color: '#6B7280' }
+        ];
+
+        let entries = JSON.parse(localStorage.getItem('uren_entries_v2')) || [];
+        let categories = JSON.parse(localStorage.getItem('uren_categories_v2')) || DEFAULT_CATEGORIES;
+        
+        let stageTarget = parseFloat(localStorage.getItem('uren_target_stage')) || 320;
+        let workHourlyRate = parseFloat(localStorage.getItem('uren_work_rate')) || 0;
+
+        let activeOverviewTab = 'week';
+        let chartInstance = null;
+
+        window.onload = function() {
+            initTheme();
+            renderAll();
+            document.getElementById('entryDate').valueAsDate = new Date();
+        };
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('uren_theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('themeIcon').innerText = 'light_mode';
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('themeIcon').innerText = 'dark_mode';
+            }
+        }
+
+        function toggleDarkMode() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('uren_theme', 'light');
+                document.getElementById('themeIcon').innerText = 'dark_mode';
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('uren_theme', 'dark');
+                document.getElementById('themeIcon').innerText = 'light_mode';
+            }
+        }
+
+        function renderAll() {
+            renderStageProgress();
+            renderWorkProgress();
+            renderTotalsSummary();
+            renderEntriesList();
+            renderCategoryOptions();
+            updateChart();
+        }
+
+        function isSameWeek(d1, d2) {
+            const date1 = new Date(d1);
+            const date2 = new Date(d2);
+            date1.setHours(0, 0, 0, 0);
+            date2.setHours(0, 0, 0, 0);
+            
+            // Set to nearest Thursday: current date + 4 - current day number
+            // Make Sunday's day number 7
+            const dayNum = date1.getDay() || 7;
+            date1.setDate(date1.getDate() + 4 - dayNum);
+            
+            // Get first day of year
+            const yearStart = new Date(date1.getFullYear(), 0, 1);
+            // Calculate full weeks to nearest Thursday
+            const week1 = Math.ceil((((date1 - yearStart) / 86400000) + 1) / 7);
+            
+            const dayNum2 = date2.getDay() || 7;
+            date2.setDate(date2.getDate() + 4 - dayNum2);
+            const yearStart2 = new Date(date2.getFullYear(), 0, 1);
+            const week2 = Math.ceil((((date2 - yearStart2) / 86400000) + 1) / 7);
+
+            return week1 === week2 && date1.getFullYear() === date2.getFullYear();
+        }
+
+        // 1. Stage Voortgang Berekenen
+        function renderStageProgress() {
+            const stageHours = entries
+                .filter(e => e.type === 'stage' || e.type === 'both')
+                .reduce((sum, item) => sum + item.hours, 0);
+
+            const percentage = Math.min(100, Math.round((stageHours / stageTarget) * 100));
+            const remaining = Math.max(0, stageTarget - stageHours);
+
+            document.getElementById('stageHoursDisplay').innerHTML = `${stageHours.toFixed(1)} / ${stageTarget} <span class="text-sm font-normal text-zinc-500">uur</span>`;
+            document.getElementById('stagePercentage').innerText = `${percentage}%`;
+            document.getElementById('stageProgressBar').style.width = `${percentage}%`;
+            document.getElementById('stageRemaining').innerText = remaining > 0 ? `Nog ${remaining.toFixed(1)} uur te gaan` : 'Doel Behaald! 🎉';
+        }
+
+        // 2. Gewerkte Uren (Betaald Werk) Berekenen - Zonder doelen/balken
+        function renderWorkProgress() {
+            const now = new Date();
+            const thisWeekWorkHours = entries
+                .filter(e => (e.type === 'work' || e.type === 'both') && isSameWeek(new Date(e.date), now))
+                .reduce((sum, item) => sum + item.hours, 0);
+
+            const totalWorkHoursAllTime = entries
+                .filter(e => e.type === 'work' || e.type === 'both')
+                .reduce((sum, item) => sum + item.hours, 0);
+
+            const totalWorkEarnings = thisWeekWorkHours * workHourlyRate;
+
+            document.getElementById('workHoursDisplay').innerHTML = `${thisWeekWorkHours.toFixed(1)} <span class="text-base font-normal text-zinc-500 dark:text-zinc-400">uur deze week</span>`;
+            
+            if (workHourlyRate > 0) {
+                document.getElementById('workEarningsEstimate').innerText = `€ ${totalWorkEarnings.toFixed(2)}`;
+                document.getElementById('workHourlyRateLabel').innerText = `Uurloon: € ${workHourlyRate.toFixed(2)}/u`;
+            } else {
+                document.getElementById('workEarningsEstimate').innerText = ``;
+                document.getElementById('workHourlyRateLabel').innerText = `Uurloon: Niet ingesteld`;
+            }
+
+            document.getElementById('workTotalAllTimeLabel').innerText = `Totaal gewerkt: ${totalWorkHoursAllTime.toFixed(1)}u`;
+        }
+
+        function switchOverviewTab(type) {
+            activeOverviewTab = type;
+            const weekBtn = document.getElementById('tabThisWeekBtn');
+            const allBtn = document.getElementById('tabAllTimeBtn');
+
+            if (type === 'week') {
+                weekBtn.className = "flex-1 py-2 rounded-xl text-center transition-all bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm font-semibold";
+                allBtn.className = "flex-1 py-2 rounded-xl text-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all";
+            } else {
+                allBtn.className = "flex-1 py-2 rounded-xl text-center transition-all bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm font-semibold";
+                weekBtn.className = "flex-1 py-2 rounded-xl text-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all";
+            }
+
+            renderTotalsSummary();
+            updateChart();
+        }
+
+        function renderTotalsSummary() {
+            const now = new Date();
+            let filteredEntries = entries;
+
+            if (activeOverviewTab === 'week') {
+                filteredEntries = entries.filter(e => isSameWeek(new Date(e.date), now));
+            }
+
+            const stageTotal = filteredEntries.filter(e => e.type === 'stage' || e.type === 'both').reduce((s, i) => s + i.hours, 0);
+            const workTotal = filteredEntries.filter(e => e.type === 'work' || e.type === 'both').reduce((s, i) => s + i.hours, 0);
+            const combined = stageTotal + workTotal;
+
+            document.getElementById('statStageSubtotal').innerText = `${stageTotal.toFixed(1)}u`;
+            document.getElementById('statWorkSubtotal').innerText = `${workTotal.toFixed(1)}u`;
+            document.getElementById('statCombinedTotal').innerText = `${combined.toFixed(1)}u`;
+        }
+
+        function renderEntriesList() {
+            const container = document.getElementById('entriesList');
+            container.innerHTML = '';
+
+            const typeFilter = document.getElementById('typeFilterSelector').value;
+            const dateFilter = document.getElementById('dateFilterSelector').value;
+
+            const now = new Date();
+            let filtered = [...entries];
+
+            // Type filter
+            if (typeFilter !== 'all') {
+                filtered = filtered.filter(e => e.type === typeFilter || e.type === 'both');
+            }
+
+            // Datum filter
+            if (dateFilter === 'thisWeek') {
+                filtered = filtered.filter(e => isSameWeek(new Date(e.date), now));
+            } else if (dateFilter === 'lastWeek') {
+                const lastWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+                filtered = filtered.filter(e => isSameWeek(new Date(e.date), lastWeek));
+            } else if (dateFilter === 'thisMonth') {
+                filtered = filtered.filter(e => {
+                    const d = new Date(e.date);
+                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                });
+            }
+
+            filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-zinc-400 text-xs">
+                        <span class="material-symbols-outlined text-3xl mb-1 block">event_busy</span>
+                        Geen uren gevonden voor deze selectie.
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(entry => {
+                const cat = categories.find(c => c.id === entry.categoryId) || { name: 'Onbekend', color: '#9CA3AF' };
+                const formattedDate = new Date(entry.date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' });
+
+                let badgeHTML = '';
+                if (entry.type === 'stage') {
+                    badgeHTML = `<span class="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 text-[10px] font-semibold px-2 py-0.5 rounded-md">🎓 Stage</span>`;
+                } else if (entry.type === 'work') {
+                    badgeHTML = `<span class="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded-md">💼 Werk</span>`;
+                } else {
+                    badgeHTML = `<span class="bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 text-[10px] font-semibold px-2 py-0.5 rounded-md">🔀 Beide</span>`;
+                }
+
+                const item = document.createElement('div');
+                item.className = "bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl p-3.5 flex items-center justify-between shadow-sm";
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-10 rounded-full flex-shrink-0" style="background-color: ${cat.color}"></div>
+                        <div>
+                            <div class="flex items-center gap-2 mb-0.5">
+                                <span class="font-bold text-sm">${cat.name}</span>
+                                ${badgeHTML}
+                            </div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+                                <span>${formattedDate}</span>
+                                ${entry.note ? `<span class="italic max-w-[150px] truncate">- ${entry.note}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold text-base text-zinc-800 dark:text-zinc-100">${entry.hours}u</span>
+                        <div class="flex flex-col gap-1">
+                            <button onclick="editEntry('${entry.id}')" class="text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-0.5">
+                                <span class="material-symbols-outlined text-base">edit</span>
+                            </button>
+                            <button onclick="deleteEntry('${entry.id}')" class="text-zinc-400 hover:text-red-500 p-0.5">
+                                <span class="material-symbols-outlined text-base">delete</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function renderCategoryOptions() {
+            const select = document.getElementById('entryCategory');
+            select.innerHTML = '';
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.name;
+                select.appendChild(opt);
+            });
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            const chartFilter = document.getElementById('chartTypeFilter').value;
+            const emptyState = document.getElementById('chartEmptyState');
+
+            const now = new Date();
+            let filteredEntries = entries;
+
+            if (activeOverviewTab === 'week') {
+                filteredEntries = entries.filter(e => isSameWeek(new Date(e.date), now));
+            }
+
+            if (chartFilter === 'stage') {
+                filteredEntries = filteredEntries.filter(e => e.type === 'stage' || e.type === 'both');
+            } else if (chartFilter === 'work') {
+                filteredEntries = filteredEntries.filter(e => e.type === 'work' || e.type === 'both');
+            }
+
+            const categoryTotals = {};
+            categories.forEach(c => categoryTotals[c.id] = 0);
+
+            filteredEntries.forEach(e => {
+                if (categoryTotals[e.categoryId] !== undefined) {
+                    categoryTotals[e.categoryId] += e.hours;
+                }
+            });
+
+            const activeCategories = categories.filter(c => categoryTotals[c.id] > 0);
+            const labels = activeCategories.map(c => c.name);
+            const data = activeCategories.map(c => categoryTotals[c.id]);
+            const backgroundColors = activeCategories.map(c => c.color);
+
+            if (data.length === 0) {
+                emptyState.classList.remove('hidden');
+                if (chartInstance) chartInstance.destroy();
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { family: 'Roboto', size: 11 },
+                                usePointStyle: true,
+                                padding: 12
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        function openEntryModal() {
+            document.getElementById('modalEntryTitle').innerText = 'Uren Registreren';
+            document.getElementById('entryId').value = '';
+            document.getElementById('entryForm').reset();
+            document.getElementById('entryDate').valueAsDate = new Date();
+            document.getElementById('entryModal').classList.remove('hidden');
+        }
+
+        function closeEntryModal() {
+            document.getElementById('entryModal').classList.add('hidden');
+        }
+
+        function editEntry(id) {
+            const entry = entries.find(e => e.id === id);
+            if (!entry) return;
+
+            document.getElementById('modalEntryTitle').innerText = 'Uren Bewerken';
+            document.getElementById('entryId').value = entry.id;
+            document.getElementById('entryDate').value = entry.date;
+            document.getElementById('entryHours').value = entry.hours;
+            document.getElementById('entryCategory').value = entry.categoryId;
+            document.getElementById('entryNote').value = entry.note || '';
+
+            const radios = document.getElementsByName('entryType');
+            radios.forEach(r => {
+                r.checked = (r.value === entry.type);
+            });
+
+            document.getElementById('entryModal').classList.remove('hidden');
+        }
+
+        function deleteEntry(id) {
+            if (confirm("Weet je zeker dat je deze dienst wilt verwijderen?")) {
+                entries = entries.filter(e => e.id !== id);
+                saveData();
+                renderAll();
+                showToast("Dienst verwijderd");
+            }
+        }
+
+        function handleSaveEntry(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('entryId').value;
+            const date = document.getElementById('entryDate').value;
+            const hours = parseFloat(document.getElementById('entryHours').value);
+            const categoryId = document.getElementById('entryCategory').value;
+            const note = document.getElementById('entryNote').value.trim();
+
+            let type = 'stage';
+            const radios = document.getElementsByName('entryType');
+            radios.forEach(r => { if (r.checked) type = r.value; });
+
+            if (id) {
+                // Update
+                const index = entries.findIndex(e => e.id === id);
+                if (index !== -1) {
+                    entries[index] = { id, date, hours, categoryId, note, type };
+                }
+            } else {
+                // Create
+                const newEntry = {
+                    id: 'entry-' + Date.now(),
+                    date,
+                    hours,
+                    categoryId,
+                    note,
+                    type
+                };
+                entries.push(newEntry);
+            }
+
+            saveData();
+            closeEntryModal();
+            renderAll();
+            showToast(id ? "Dienst bijgewerkt!" : "Uren succesvol opgeslagen!");
+        }
+
+        // Doelen/Instellingen Aanpassen Modal (Stage vs Werk)
+        function openTargetModal(type) {
+            document.getElementById('targetType').value = type;
+            const stageFields = document.getElementById('stageTargetFields');
+            const workFields = document.getElementById('workTargetFields');
+
+            if (type === 'stage') {
+                document.getElementById('targetModalTitle').innerText = 'Stage Doel Instellen';
+                stageFields.classList.remove('hidden');
+                workFields.classList.add('hidden');
+                document.getElementById('stageTargetInput').value = stageTarget;
+            } else {
+                document.getElementById('targetModalTitle').innerText = 'Uurloon Instellen';
+                stageFields.classList.add('hidden');
+                workFields.classList.remove('hidden');
+                document.getElementById('workHourlyRateInput').value = workHourlyRate || '';
+            }
+
+            document.getElementById('targetModal').classList.remove('hidden');
+        }
+
+        function closeTargetModal() {
+            document.getElementById('targetModal').classList.add('hidden');
+        }
+
+        function handleSaveTarget(e) {
+            e.preventDefault();
+            const type = document.getElementById('targetType').value;
+
+            if (type === 'stage') {
+                const val = parseFloat(document.getElementById('stageTargetInput').value);
+                if (val && val > 0) {
+                    stageTarget = val;
+                    localStorage.setItem('uren_target_stage', stageTarget);
+                }
+            } else {
+                const valRate = parseFloat(document.getElementById('workHourlyRateInput').value) || 0;
+                workHourlyRate = valRate;
+                localStorage.setItem('uren_work_rate', workHourlyRate);
+            }
+
+            closeTargetModal();
+            renderAll();
+            showToast("Instellingen opgeslagen!");
+        }
+
+        // Categorie Modal
+        function openCategoryManagerModal() {
+            renderCategoryListInModal();
+            document.getElementById('categoryModal').classList.remove('hidden');
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').classList.add('hidden');
+        }
+
+        function renderCategoryListInModal() {
+            const list = document.getElementById('categoriesList');
+            list.innerHTML = '';
+            categories.forEach(cat => {
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50";
+                item.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-4 h-4 rounded-full flex-shrink-0" style="background-color: ${cat.color}"></span>
+                        <span class="text-sm font-medium">${cat.name}</span>
+                    </div>
+                    <button onclick="deleteCategory('${cat.id}')" class="text-zinc-400 hover:text-red-500 p-1">
+                        <span class="material-symbols-outlined text-lg">delete</span>
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function handleAddCategory(e) {
+            e.preventDefault();
+            const name = document.getElementById('newCatName').value.trim();
+            const color = document.getElementById('newCatColor').value;
+
+            if (name) {
+                categories.push({ id: 'cat-' + Date.now(), name, color });
+                saveData();
+                document.getElementById('newCatName').value = '';
+                renderCategoryListInModal();
+                renderCategoryOptions();
+                updateChart();
+                showToast("Categorie toegevoegd!");
+            }
+        }
+
+        function deleteCategory(id) {
+            if (entries.some(e => e.categoryId === id)) {
+                alert("Kan niet verwijderen: categorie is in gebruik bij diensten.");
+                return;
+            }
+            if (categories.length <= 1) {
+                alert("Je moet minimaal één categorie behouden.");
+                return;
+            }
+            if (confirm("Categorie verwijderen?")) {
+                categories = categories.filter(c => c.id !== id);
+                saveData();
+                renderCategoryListInModal();
+                renderCategoryOptions();
+                updateChart();
+                showToast("Categorie verwijderd");
+            }
+        }
+
+        // CSV Export met Type ondersteuning
+        function exportCSV() {
+            if (entries.length === 0) {
+                showToast("Geen uren om te exporteren!");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,Datum;Type;Categorie;Aantal Uren;Notitie\n";
+            const sorted = [...entries].sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            sorted.forEach(e => {
+                const cat = categories.find(c => c.id === e.categoryId) || { name: 'Onbekend' };
+                const cleanNote = (e.note || '').replace(/;/g, ',');
+                const typeName = e.type === 'stage' ? 'Stage' : (e.type === 'work' ? 'Betaald Werk' : 'Beide');
+                csvContent += `${e.date};"${typeName}";"${cat.name}";${e.hours};"${cleanNote}"\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `uren_stage_en_werk_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast("CSV bestand gedownload!");
+        }
+
+        function saveData() {
+            localStorage.setItem('uren_entries_v2', JSON.stringify(entries));
+            localStorage.setItem('uren_categories_v2', JSON.stringify(categories));
+        }
+
+        function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = message;
+            toast.classList.remove('-translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
